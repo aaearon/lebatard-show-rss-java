@@ -5,6 +5,7 @@ import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
 import com.rometools.rome.io.SyndFeedOutput;
 import com.rometools.rome.io.XmlReader;
+import org.apache.log4j.Logger;
 
 import java.io.FileWriter;
 import java.io.Writer;
@@ -15,11 +16,18 @@ import java.util.Date;
 import java.util.List;
 
 public class App {
-    final private static String FEED_URL = "http://espn.go.com/espnradio/feeds/rss/podcast.xml?id=9941853";
+    final static private String FEED_URL = "http://espn.go.com/espnradio/feeds/rss/podcast.xml?id=9941853";
     private static String FILEPATH;
 
+    final static Logger logger = Logger.getLogger(App.class);
+
     public static void main(String[] args) {
-        FILEPATH = args[0];
+
+        try {
+            FILEPATH = args[0];
+        } catch (Exception e) {
+            logger.fatal("No filepath as argument!", e);
+        }
 
         SyndFeed feed = getFeed(FEED_URL);
         List<SyndEntry> goodEntries = getGoodEntries(feed);
@@ -36,7 +44,7 @@ public class App {
             writer.close();
 
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.fatal(e);
         }
     }
 
@@ -49,10 +57,11 @@ public class App {
 
             SyndFeedInput input = new SyndFeedInput();
             feed = input.build(new XmlReader(url));
-
+            logger.debug(String.format("Getting feed from %s", feedUrl));
             return feed;
         } catch (Exception e) {
             e.printStackTrace();
+            logger.error("Something went wrong getting the feed", e);
         }
 
         return feed;
@@ -66,16 +75,25 @@ public class App {
                 SyndEntry entry = e;
                 String entryTitle = entry.getTitle().toLowerCase();
 
+                int offset;
+
                 if (entryTitle.contains("local hour")) {
-                    entry.setPublishedDate(modifyPublishedDate(entry.getPublishedDate(), -1));
+                    offset = -1;
                 } else if (entryTitle.contains("hour 1")) {
-                    entry.setPublishedDate(modifyPublishedDate(entry.getPublishedDate(), 1));
+                    offset = 1;
                 } else if (entryTitle.contains("hour 2")) {
-                    entry.setPublishedDate(modifyPublishedDate(entry.getPublishedDate(), 2));
+                    offset = 2;
                 } else if (entryTitle.contains("hour 3")) {
-                    entry.setPublishedDate(modifyPublishedDate(entry.getPublishedDate(), 3));
+                    offset = 3;
                 } else {
-                    System.out.println("No relevant episode title found");
+                    offset = 0;
+                }
+
+                if (offset != 0) {
+                    logger.debug(String.format("Found episode %s, setting publish date %s hour", e.getTitle(), offset));
+                    entry.setPublishedDate(modifyPublishedDate(e.getPublishedDate(), offset));
+                } else {
+                    logger.warn(String.format("Unsure what to do with title: %s, not setting publish date", e.getTitle()));
                 }
 
                 goodEntries.add(entry);
